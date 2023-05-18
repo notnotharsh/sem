@@ -1,0 +1,4 @@
+
+Run the matlab script poisson_exact.m to see the (slow) convergence of the Fourier expansion.
+
+Run the matlab script poisson_sem.m to see the fast, but algebraic, convergence of the Legendre expansion.
