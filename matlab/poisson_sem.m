@@ -37,7 +37,7 @@ for kpass=0:2;
 
      f=sin(pi*X).*sin(pi*Y);
      ue=(sin(pi*X).*sin(pi*Y))/(pi*pi*2);
-     f=1.+0*X;
+     #f=1.+0*X;
 
      n=size(Ax,1);
 

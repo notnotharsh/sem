@@ -55,5 +55,3 @@ end;
 
 z=z';
 w=w';
-
-disp(w)

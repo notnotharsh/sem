@@ -1,5 +1,9 @@
 import numpy as np
-import numpy.linalg as la
+import scipy.linalg as la
+import scipy.sparse as sparse
+
+from mpl_toolkits.mplot3d import axes3d
+import matplotlib.pyplot as plt
 
 def interp_mat(xo, xi):
     """
@@ -118,3 +122,94 @@ def semhat(N):
         Ah[i, i] -= np.sum(Ah[i, :]) # null space
     
     return Ah, Bh, Ch, Dh, z, w
+
+def poisson_sem():
+
+    # nonintegers
+    k = 5.3
+    l = 6.2
+    
+    # degrees
+    # N0 = 80
+    # N1 = 88
+    # Ns = 2
+
+    N = 80
+
+    Ah, Bh, Ch, Dh, z, w = semhat(N)
+    Ao, Bo, Co, Do, zo, wo = semhat(N + 2)
+
+    Jh = interp_mat(zo, z)
+    Bf = Jh.T@Bo@Jh
+    # Bh = Bf # if you want to use the full mass matrix
+
+    # size of each dimension (original is 2)
+    Lx = 1
+    Ly = 1
+
+    x = Lx / 2 * (z + np.ones(z.shape[0])) # x is GLL nodes in 0, 1
+    y = Ly / 2 * (z + np.ones(z.shape[0])) # y is GLL nodes in 0, 1
+
+    X, Y = np.meshgrid(x, y, indexing='ij')
+    
+    # restriction matrix (changes on boundary conditions)
+    R = np.eye(N + 1)
+    R = R[1:N, :]
+
+    Ax = (2 / Lx) * R@Ah@R.T
+    Ax = (Ax + Ax.T) / 2 # symmetry
+    
+    Bbx = (Lx / 2) * Bh
+    Bx = R@Bbx@R.T
+
+    Ay = (2 / Ly) * R@Ah@R.T
+    Ay = (Ay + Ay.T) / 2 # symmetry
+    
+    Bby = (Ly / 2) * Bh
+    By = R@Bby@R.T
+
+    f = np.sin(np.pi * k * X) * np.sin(np.pi * l * Y)
+    ue = f / (np.pi**2 * (k**2 + l**2))
+
+    n = Ax.shape[0]
+
+    Dx, Sx = la.eigh(Ax, Bx)
+    Dx = sparse.csr_matrix(np.diag(Dx))
+
+    Dy, Sy = la.eigh(Ay, By)
+    Dy = sparse.csr_matrix(np.diag(Dy))
+
+    for j in range(n): # normalize eigenvectors
+        Sx[:,j] /= np.sqrt(Sx[:,j].T@Bx@Sx[:,j])
+        Sy[:,j] /= np.sqrt(Sy[:,j].T@By@Sy[:,j])
+    
+    Ix = sparse.eye(n)
+    Iy = sparse.eye(n)
+
+    D = sparse.kron(Iy, Dx) + sparse.kron(Dy, Ix)
+    D = D.diagonal()
+    D = np.reshape(D, (n, n))
+
+    Bf = Bbx@f@Bby.T
+    Bf = R@Bf@R.T
+
+    u = Sx @ np.divide((Sx.T @ Bf @ Sy), D) @ Sy.T
+    ub = R.T@u@R
+
+    er = ue - ub
+    err = np.linalg.norm(er, ord=np.inf)
+
+    fig = plt.figure(figsize=plt.figaspect(0.5))
+    plt.axis('off')
+    plt.title(r"spectral element solution to $\nabla^2 u = (\sin{\pi kx})(\sin{\pi ly})$, homogenous dirichlet boundary conditions")
+
+    ax = fig.add_subplot(1, 2, 1, projection='3d')
+    ax.plot_wireframe(X, Y, ub, linewidth=0.5, alpha=0.5)
+
+    ax = fig.add_subplot(1, 2, 2, projection='3d')
+    ax.plot_wireframe(X, Y, er, linewidth=0.5, alpha=0.5)
+
+    plt.show()
+
+
+poisson_sem()
