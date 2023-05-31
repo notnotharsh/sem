@@ -5,6 +5,8 @@ import scipy.sparse as sparse
 from mpl_toolkits.mplot3d import axes3d
 import matplotlib.pyplot as plt
 
+np.set_printoptions(precision=4, linewidth=100000)
+
 def interp_mat(xo, xi):
     """
     Compute the interpolation matrix from xi to xo
@@ -126,8 +128,8 @@ def semhat(N):
 def poisson_sem():
 
     # nonintegers
-    k = 5.3
-    l = 6.2
+    k = .01
+    l = .89
     
     # degrees
     N0 = 2
@@ -178,8 +180,11 @@ def poisson_sem():
         Aby = (Ah + Ah.T) / Ly
 
         f = np.sin(np.pi * k * X) * np.sin(np.pi * l * Y)
-        ue = f / (np.pi**2 * (k**2 + l**2))
+        ue = f / (np.pi**2 * (k**2 + l**2)) # (np.sin(np.pi * X) + np.cos(np.pi * X)) * (np.sinh(np.pi * Y) + np.cosh(np.pi * Y))
         ub = np.zeros_like(ue)
+
+        ub[0, :] = ue[0, :]
+        ub[:, 0] = ue[:, 0]
         ub[-1, :] = ue[-1, :]
         ub[:, -1] = ue[:, -1]
 
@@ -240,7 +245,7 @@ def poisson_sem():
         if N == N1 - Ns:
             fig = plt.figure(figsize=plt.figaspect(0.33))
             plt.axis('off')
-            plt.title(r"spectral element solution to $\nabla^2 u = (\sin{\pi kx})(\sin{\pi ly})$, inhomogenous dirichlet boundary conditions")
+            plt.title(r"spectral element solution (sem, theo, error) to $\nabla^2 u = (\sin \pi kx)(\sin \pi ly)$, inhomogenous dirichlet boundary conditions")
 
             ax = fig.add_subplot(1, 3, 1, projection='3d')
             ax.plot_wireframe(X, Y, ub, linewidth=0.5, alpha=0.5)

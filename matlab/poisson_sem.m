@@ -29,39 +29,61 @@ for kpass=0:2;
 
      [X,Y]=ndgrid(x,y);
 
-     R=eye(N+1); R=R(2:N,:);
+     Rx=eye(N+1); Rx=Rx(2:N,:);
+     Ry=eye(N+1); Ry=Ry(2:N,:);
 
-     Ax=(2/Lx)*R*Ah*R';   Bbx=(Lx/2)*Bh; Bx=R*Bbx*R';  Ax=.5*(Ax+Ax');
-     Ay=(2/Ly)*R*Ah*R';   Bby=(Ly/2)*Bh; By=R*Bby*R';  Ay=.5*(Ay+Ay');
+     Abx=(2/Lx)*Ah; Abx=.5*(Abx+Abx'); Ax = Rx*Abx*Rx';  Bbx=(Lx/2)*Bh; Bx=Rx*Bbx*Rx';  
+     Aby=(2/Ly)*Ah; Aby=.5*(Aby+Aby'); Ay = Ry*Aby*Ry';  Bby=(Ly/2)*Bh; By=Ry*Bby*Ry';
+     
+     pk = 1.2
+     pl = 5.1
 
-
-     f=sin(pi*X).*sin(pi*Y);
+     f=sin(pi*pk*X).*sin(pi*pl*Y);
      ue=(sin(pi*X).*sin(pi*Y))/(pi*pi*2);
+     
+     ub = ue * 0;
+     
+     ub(1,:) = ue(1,:)
+     ub(:,1) = ue(:,1)
+     ub(end, :) = ue(end, :);
+     ub(:, end) = ue(:, end);
+     
      #f=1.+0*X;
 
      n=size(Ax,1);
+     nb = size(Abx, 1);
 
      [Sx,Dx]=eig(Ax,Bx); Dx=sparse(Dx);
      [Sy,Dy]=eig(Ay,By); Dy=sparse(Dy);
+     
+     [Sbx,Dbx]=eig(Abx,Bbx); Dbx=sparse(Dbx);
+     [Sby,Dby]=eig(Aby,Bby); Dby=sparse(Dby);
 
      for j=1:n;
-        s = Sx(:,j)'*Bx*Sx(:,j); s = sqrt(s); Sx(:,j)=Sx(:,j)/s;
-        s = Sy(:,j)'*By*Sy(:,j); s = sqrt(s); Sy(:,j)=Sy(:,j)/s;
+        Sx(:,j)=Sx(:,j)/sqrt(Sx(:,j)'*Bx*Sx(:,j));
+        Sy(:,j)=Sy(:,j)/sqrt(Sy(:,j)'*By*Sy(:,j));
      end;
+        
+     for j=1:nb;
+        Sbx(:,j)=Sbx(:,j)/sqrt(Sbx(:,j)'*Bbx*Sbx(:,j));
+        Sby(:,j)=Sby(:,j)/sqrt(Sby(:,j)'*Bby*Sby(:,j));
+     end;
+     
      Ix=speye(n); Iy=speye(n);
      D = kron(Iy,Dx) + kron(Dy,Ix); D=diag(D); D=reshape(D,n,n);
+     
+     Ibx=speye(nb); Iby=speye(nb);
+     Db = kron(Iby,Dbx) + kron(Dby,Ibx); Db=diag(Db); Db=reshape(Db,nb,nb);
 
-     Bf = Bbx*f*Bby';  Bf=R*Bf*R';
+     Bf = Bbx*f*Bby';  Bf=Rx*Bf*Ry';
+     
+     Sbxi = inv(Sbx); Sbyi = inv(Sby);
+     inhom_effect = Sbxi' * ((Sbxi*ub*Sbyi).*Db) * Sbyi
+     inhom_effect = Rx*inhom_effect*Ry';
 
-     u = Sx * ( ( Sx'*Bf*Sy )./D ) * Sy';
+     u = Sx * ( ( Sx'*(Bf - inhom_effect)*Sy )./D ) * Sy';
+     ub = ub + Rx'*u*Ry;
 
-     A = kron(By,Ax) + kron(Ay,Bx);
-     B = kron(By,Bx);
-     b = reshape(Bf,n*n,1);
-     u = A\b;
-     u = reshape(u,n,n);
-
-     ub = R'*u*R;
      er = ue-ub;
      err=norm(er,Inf);
      mesh(X,Y,ub); drawnow
