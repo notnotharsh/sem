@@ -241,6 +241,15 @@ def poisson_sem_iso(bdy_points):
     return ub
 
 def element_meshing(x_points, y_points):
+
+    old_X = poisson_sem_iso(x_points)
+    old_Y = poisson_sem_iso(y_points)
+
+    x_points[0, :], y_points[0, :] = gll_redistribution(x_points[0, :], y_points[0, :])
+    x_points[-1, :], y_points[-1, :] = gll_redistribution(x_points[-1, :], y_points[-1, :])
+    x_points[:, 0], y_points[:, 0] = gll_redistribution(x_points[:, 0], y_points[:, 0])
+    x_points[:, -1], y_points[:, -1] = gll_redistribution(x_points[:, -1], y_points[:, -1])
+
     X = poisson_sem_iso(x_points)
     Y = poisson_sem_iso(y_points)
 
@@ -251,16 +260,44 @@ def element_meshing(x_points, y_points):
     Xf = J@X@J.T
     Yf = J@Y@J.T
 
-    fig = plt.figure(figsize=plt.figaspect(1))
+    old_Xf = J@old_X@J.T
+    old_Yf = J@old_Y@J.T
+
+    fig = plt.figure(figsize=plt.figaspect(0.5))
     plt.axis('off')
-    plt.title(r"interpolated element mesh")
+    plt.title(r"interpolated element mesh, without and with GLL adjustments")
+
+
+    ax = fig.add_subplot(1, 2, 1, projection="3d")
+    ax.plot_wireframe(old_Xf, old_Yf, 0 * old_Xf, linewidth=2, alpha=1, color='r')
+    ax.plot_wireframe(old_X, old_Y, 0 * old_X, linewidth=2, alpha=1, color='b')
     
-    ax = fig.add_subplot(1, 1, 1, projection="3d")
+    ax = fig.add_subplot(1, 2, 2, projection="3d")
     ax.plot_wireframe(Xf, Yf, 0 * Xf, linewidth=2, alpha=1, color='r')
     ax.plot_wireframe(X, Y, 0 * X, linewidth=2, alpha=1, color='b')
 
     plt.show()
 
+def gll_redistribution(x_top, y_top):
+    n = x_top.shape[0]
+    t_top = np.zeros_like(x_top)
+    point_sum = 0
+
+    for i in range(n - 1):
+        point_sum += np.hypot(x_top[i + 1] - x_top[i], y_top[i + 1] - y_top[i])
+        t_top[i + 1] = point_sum
+
+    t_top /= (point_sum / 2)
+    t_top -= 1
+
+    csx = CubicSpline(t_top, x_top)
+    csy = CubicSpline(t_top, y_top)
+    t_gll = zwgll(n - 1)[0]
+
+    x_gll = csx(t_gll)
+    y_gll = csy(t_gll)
+
+    return x_gll, y_gll
 
 x_points = np.array([[.6, 1, 1.8, 2.7, 3.2], [.7, 0, 0, 0, 3.25], [0.8, 0, 0, 0, 3.3], [.8, 0, 0, 0, 3.7], [.5, .7, 1.9, 3.3, 4.0]])
 y_points = np.array([[1.7, 1.8, 1.8, 1.7, 1.6], [2.1, 0, 0, 0, 2.0], [3.1, 0, 0, 0, 3.2], [4.05, 0, 0, 0, 4.3], [4.4, 4.6, 5.2, 5.1, 5.0]])
