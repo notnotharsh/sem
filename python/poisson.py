@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.linalg as la
 import scipy.sparse as sparse
+from scipy.interpolate import CubicSpline
 
 from mpl_toolkits.mplot3d import axes3d
 import matplotlib.pyplot as plt
@@ -125,146 +126,143 @@ def semhat(N):
     
     return Ah, Bh, Ch, Dh, z, w
 
-def poisson_sem():
+def poisson_sem_iso(bdy_points):
 
     # nonintegers
     k = .01
     l = .89
     
     # degrees
-    N0 = 2
-    N1 = 60
+    N0 = 4
+    N1 = 6
     Ns = 2
 
     N_arr = []
     err_arr = []
 
-    for N in range(N0, N1, Ns):
+    N = N0
 
-        Ah, Bh, Ch, Dh, z, w = semhat(N)
-        Ao, Bo, Co, Do, zo, wo = semhat(N + 2)
+    Ah, Bh, Ch, Dh, z, w = semhat(N)
+    Ao, Bo, Co, Do, zo, wo = semhat(N + 2)
 
-        Jh = interp_mat(zo, z)
-        Bf = Jh.T@Bo@Jh
-        # Bh = Bf # if you want to use the full mass matrix
+    Jh = interp_mat(zo, z)
+    Bf = Jh.T@Bo@Jh
+    # Bh = Bf # if you want to use the full mass matrix
 
-        # size of each dimension (original is 2)
-        Lx = 1
-        Ly = 1
+    # size of each dimension (original is 2)
+    Lx = 2
+    Ly = 2
 
-        x = Lx / 2 * (z + np.ones(z.shape[0])) # x is GLL nodes in 0, 1
-        y = Ly / 2 * (z + np.ones(z.shape[0])) # y is GLL nodes in 0, 1
+    x = Lx / 2 * (z) # x is GLL nodes in 0, 1
+    y = Ly / 2 * (z) # y is GLL nodes in 0, 1
 
-        X, Y = np.meshgrid(x, y, indexing='ij')
-        
-        # restriction matrix (changes on boundary conditions)
-        Rx = np.eye(N + 1)
-        Rx = Rx[1:N, :]
-
-        Ry = np.eye(N + 1)
-        Ry = Ry[1:N, :]
-
-        Ax = (2 / Lx) * Rx@Ah@Rx.T
-        Ax = (Ax + Ax.T) / 2 # symmetry
-        
-        Bbx = (Lx / 2) * Bh
-        Bx = Rx@Bbx@Rx.T
-
-        Ay = (2 / Ly) * Ry@Ah@Ry.T
-        Ay = (Ay + Ay.T) / 2 # symmetry
-        
-        Bby = (Ly / 2) * Bh
-        By = Ry@Bby@Ry.T
-
-        Abx = (Ah + Ah.T) / Lx
-        Aby = (Ah + Ah.T) / Ly
-
-        f = np.sin(np.pi * k * X) * np.sin(np.pi * l * Y)
-        ue = f / (np.pi**2 * (k**2 + l**2)) # (np.sin(np.pi * X) + np.cos(np.pi * X)) * (np.sinh(np.pi * Y) + np.cosh(np.pi * Y))
-        ub = np.zeros_like(ue)
-
-        ub[0, :] = ue[0, :]
-        ub[:, 0] = ue[:, 0]
-        ub[-1, :] = ue[-1, :]
-        ub[:, -1] = ue[:, -1]
-
-        n = Ax.shape[0]
-        n_bar = Abx.shape[0]
-
-        Dx, Sx = la.eigh(Ax, Bx)
-        Dx = sparse.csr_matrix(np.diag(Dx))
-
-        Dy, Sy = la.eigh(Ay, By)
-        Dy = sparse.csr_matrix(np.diag(Dy))
-
-        Dx_bar, Sx_bar = la.eigh(Abx, Bbx)
-        Dy_bar, Sy_bar = la.eigh(Aby, Bby)
-        Dx_bar = sparse.csr_matrix(np.diag(Dx_bar))
-        Dy_bar = sparse.csr_matrix(np.diag(Dy_bar))
-
-        for j in range(n): # normalize eigenvectors
-            Sx[:,j] /= np.sqrt(Sx[:,j].T@Bx@Sx[:,j])
-            Sy[:,j] /= np.sqrt(Sy[:,j].T@By@Sy[:,j])
-        
-        for j in range(n_bar):
-            Sx_bar[:,j] /= np.sqrt(Sx_bar[:,j].T@Bbx@Sx_bar[:,j])
-            Sy_bar[:,j] /= np.sqrt(Sy_bar[:,j].T@Bby@Sy_bar[:,j])
-        
-        Ix = sparse.eye(n)
-        Iy = sparse.eye(n)
-
-        Ibx = sparse.eye(n_bar)
-        Iby = sparse.eye(n_bar)
-
-        D = sparse.kron(Iy, Dx) + sparse.kron(Dy, Ix)
-        D = D.diagonal()
-        D = np.reshape(D, (n, n))
-
-        Db = sparse.kron(Iby, Dx_bar) + sparse.kron(Dy_bar, Ibx)
-        Db = Db.diagonal()
-        Db = np.reshape(Db, (n_bar, n_bar))
-
-        Bf = Bbx@f@Bby.T
-        Bf = Rx@Bf@Ry.T
-
-        Sxi_bar = np.linalg.inv(Sx_bar)
-        Syi_bar = np.linalg.inv(Sy_bar)
-
-        inhom_effect = Sxi_bar.T @ np.multiply((Sxi_bar@ub@Syi_bar.T), Db) @ Syi_bar
-        inhom_effect = Rx@inhom_effect@Ry.T
-
-        u = Sx @ np.divide((Sx.T @ (Bf - inhom_effect) @ Sy), D) @ Sy.T
-        ub += Rx.T@u@Ry
-
-        er = ue - ub
-        err = np.linalg.norm(er, ord=np.inf)
-
-        N_arr.append(N)
-        err_arr.append(err)
-
-        if N == N1 - Ns:
-            fig = plt.figure(figsize=plt.figaspect(0.33))
-            plt.axis('off')
-            plt.title(r"spectral element solution (sem, theo, error) to $\nabla^2 u = (\sin \pi kx)(\sin \pi ly)$, inhomogenous dirichlet boundary conditions")
-
-            ax = fig.add_subplot(1, 3, 1, projection='3d')
-            ax.plot_wireframe(X, Y, ub, linewidth=0.5, alpha=0.5)
-
-            ax = fig.add_subplot(1, 3, 2, projection='3d')
-            ax.plot_wireframe(X, Y, ue, linewidth=0.5, alpha=0.5)
-
-            ax = fig.add_subplot(1, 3, 3, projection='3d')
-            ax.plot_wireframe(X, Y, er, linewidth=0.5, alpha=0.5)
-            ax.set_zlim3d(-.001, .001)
-
-            plt.show()
-
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
+    X, Y = np.meshgrid(x, y, indexing='ij')
     
-    plt.title("SEM 2D Poisson solutions - error vs. number of nodes")
-    ax.plot(N_arr, err_arr)
-    ax.set_yscale('log')
+    # restriction matrix (changes on boundary conditions)
+    Rx = np.eye(N + 1)
+    Rx = Rx[1:N, :]
+
+    Ry = np.eye(N + 1)
+    Ry = Ry[1:N, :]
+
+    Ax = (2 / Lx) * Rx@Ah@Rx.T
+    Ax = (Ax + Ax.T) / 2 # symmetry
+    
+    Bbx = (Lx / 2) * Bh
+    Bx = Rx@Bbx@Rx.T
+
+    Ay = (2 / Ly) * Ry@Ah@Ry.T
+    Ay = (Ay + Ay.T) / 2 # symmetry
+    
+    Bby = (Ly / 2) * Bh
+    By = Ry@Bby@Ry.T
+
+    Abx = (Ah + Ah.T) / Lx
+    Aby = (Ah + Ah.T) / Ly
+
+    n = Ax.shape[0]
+    n_bar = Abx.shape[0]
+
+    Dx, Sx = la.eigh(Ax, Bx)
+    Dx = sparse.csr_matrix(np.diag(Dx))
+
+    Dy, Sy = la.eigh(Ay, By)
+    Dy = sparse.csr_matrix(np.diag(Dy))
+
+    Dx_bar, Sx_bar = la.eigh(Abx, Bbx)
+    Dy_bar, Sy_bar = la.eigh(Aby, Bby)
+    Dx_bar = sparse.csr_matrix(np.diag(Dx_bar))
+    Dy_bar = sparse.csr_matrix(np.diag(Dy_bar))
+
+    for j in range(n): # normalize eigenvectors
+        Sx[:,j] /= np.sqrt(Sx[:,j].T@Bx@Sx[:,j])
+        Sy[:,j] /= np.sqrt(Sy[:,j].T@By@Sy[:,j])
+    
+    for j in range(n_bar):
+        Sx_bar[:,j] /= np.sqrt(Sx_bar[:,j].T@Bbx@Sx_bar[:,j])
+        Sy_bar[:,j] /= np.sqrt(Sy_bar[:,j].T@Bby@Sy_bar[:,j])
+    
+    Ix = sparse.eye(n)
+    Iy = sparse.eye(n)
+
+    Ibx = sparse.eye(n_bar)
+    Iby = sparse.eye(n_bar)
+
+    D = sparse.kron(Iy, Dx) + sparse.kron(Dy, Ix)
+    D = D.diagonal()
+    D = np.reshape(D, (n, n))
+
+    Db = sparse.kron(Iby, Dx_bar) + sparse.kron(Dy_bar, Ibx)
+    Db = Db.diagonal()
+    Db = np.reshape(Db, (n_bar, n_bar))
+
+    Sxi_bar = np.linalg.inv(Sx_bar)
+    Syi_bar = np.linalg.inv(Sy_bar)
+
+    XsYs = []
+    f = 0 * X
+    ue = bdy_points
+    ub = np.zeros_like(ue)
+
+    ub[0, :] = ue[0, :]
+    ub[:, 0] = ue[:, 0]
+    ub[-1, :] = ue[-1, :]
+    ub[:, -1] = ue[:, -1]
+
+    Bf = Bbx@f@Bby.T
+    Bf = Rx@Bf@Ry.T
+
+    inhom_effect = Sxi_bar.T @ np.multiply((Sxi_bar@ub@Syi_bar.T), Db) @ Syi_bar
+    inhom_effect = Rx@inhom_effect@Ry.T
+
+    u = Sx @ np.divide((Sx.T @ (Bf - inhom_effect) @ Sy), D) @ Sy.T
+    ub += Rx.T@u@Ry
+
+    return ub
+
+def element_meshing(x_points, y_points):
+    X = poisson_sem_iso(x_points)
+    Y = poisson_sem_iso(y_points)
+
+    uf = np.linspace(-1, 1, 30)
+    z, w = zwgll(4)
+    J = interp_mat(uf, z)
+
+    Xf = J@X@J.T
+    Yf = J@Y@J.T
+
+    fig = plt.figure(figsize=plt.figaspect(1))
+    plt.axis('off')
+    plt.title(r"interpolated element mesh")
+    
+    ax = fig.add_subplot(1, 1, 1, projection="3d")
+    ax.plot_wireframe(Xf, Yf, 0 * Xf, linewidth=2, alpha=1, color='r')
+    ax.plot_wireframe(X, Y, 0 * X, linewidth=2, alpha=1, color='b')
+
     plt.show()
 
-poisson_sem()
+
+x_points = np.array([[.6, 1, 1.8, 2.7, 3.2], [.7, 0, 0, 0, 3.25], [0.8, 0, 0, 0, 3.3], [.8, 0, 0, 0, 3.7], [.5, .7, 1.9, 3.3, 4.0]])
+y_points = np.array([[1.7, 1.8, 1.8, 1.7, 1.6], [2.1, 0, 0, 0, 2.0], [3.1, 0, 0, 0, 3.2], [4.05, 0, 0, 0, 4.3], [4.4, 4.6, 5.2, 5.1, 5.0]])
+
+element_meshing(x_points, y_points)
