@@ -1,7 +1,9 @@
 import numpy as np
 import scipy.linalg as la
 import scipy.sparse as sparse
+
 from scipy.interpolate import CubicSpline
+import scipy.integrate as integrate
 
 from mpl_toolkits.mplot3d import axes3d
 import matplotlib.pyplot as plt
@@ -268,13 +270,19 @@ def element_meshing(x_points, y_points):
     plt.title(r"interpolated element mesh, without and with GLL adjustments")
 
 
-    ax = fig.add_subplot(1, 2, 1, projection="3d")
-    ax.plot_wireframe(old_Xf, old_Yf, 0 * old_Xf, linewidth=2, alpha=1, color='r')
-    ax.plot_wireframe(old_X, old_Y, 0 * old_X, linewidth=2, alpha=1, color='b')
+    ax = fig.add_subplot(1, 2, 1)
+    ax.plot(old_Xf, old_Yf, linewidth=1, alpha=1, color='r')
+    ax.plot(old_Xf.T, old_Yf.T, linewidth=1, alpha=1, color='r')
     
-    ax = fig.add_subplot(1, 2, 2, projection="3d")
-    ax.plot_wireframe(Xf, Yf, 0 * Xf, linewidth=2, alpha=1, color='r')
-    ax.plot_wireframe(X, Y, 0 * X, linewidth=2, alpha=1, color='b')
+    ax.plot(old_X, old_Y, linewidth=2, alpha=1, color='b')
+    ax.plot(old_X.T, old_Y.T, linewidth=2, alpha=1, color='b')
+    
+    ax = fig.add_subplot(1, 2, 2)
+    ax.plot(Xf, Yf, linewidth=1, alpha=1, color='r')
+    ax.plot(Xf.T, Yf.T, linewidth=1, alpha=1, color='r')
+    
+    ax.plot(X, Y, linewidth=2, alpha=1, color='b')
+    ax.plot(X.T, Y.T, linewidth=2, alpha=1, color='b')
 
     plt.show()
 
@@ -292,10 +300,25 @@ def gll_redistribution(x_top, y_top):
 
     csx = CubicSpline(t_top, x_top)
     csy = CubicSpline(t_top, y_top)
-    t_gll = zwgll(n - 1)[0]
 
-    x_gll = csx(t_gll)
-    y_gll = csy(t_gll)
+    s_top = np.zeros_like(t_top)
+    point_sum = 0
+
+    for i in range(n - 1):
+        point_sum += integrate.quad(lambda t: np.hypot(csx(t, 1), csy(t, 1)), t_top[i], t_top[i + 1])[0]
+        s_top[i + 1] = point_sum
+
+    s_top /= (point_sum / 2)
+    s_top -= 1
+
+    ccsx = CubicSpline(s_top, x_top)
+    ccsy = CubicSpline(s_top, y_top)
+
+    s_gll = zwgll(n - 1)[0]
+    s_many = np.linspace(-1, 1, 1000)
+
+    x_gll = ccsx(s_gll)
+    y_gll = ccsy(s_gll)
 
     return x_gll, y_gll
 
