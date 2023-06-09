@@ -128,21 +128,21 @@ def semhat(N):
     
     return Ah, Bh, Ch, Dh, z, w
 
-def poisson_sem_iso(bdy_points):
+def poisson_sem_iso(bdy_points, N, func=None):
 
     # nonintegers
-    k = .01
-    l = .89
-    
+    # k = .01
+    # l = .89
+     
     # degrees
-    N0 = 4
-    N1 = 6
-    Ns = 2
+    # N0 = 4
+    # N1 = 6
+    # Ns = 2
 
     N_arr = []
     err_arr = []
 
-    N = N0
+    # N = N0
 
     Ah, Bh, Ch, Dh, z, w = semhat(N)
     Ao, Bo, Co, Do, zo, wo = semhat(N + 2)
@@ -222,7 +222,10 @@ def poisson_sem_iso(bdy_points):
     Syi_bar = np.linalg.inv(Sy_bar)
 
     XsYs = []
-    f = 0 * X
+    if func is None:
+        f = 0 * X
+    else:
+        f = func(X, Y)
     ue = bdy_points
     ub = np.zeros_like(ue)
 
@@ -242,20 +245,22 @@ def poisson_sem_iso(bdy_points):
 
     return ub
 
-def element_meshing(x_points, y_points):
+def element_meshing(x_points, y_points, N):
 
-    old_X = poisson_sem_iso(x_points)
-    old_Y = poisson_sem_iso(y_points)
+    n = x_points.shape[0]
+
+    old_X = poisson_sem_iso(x_points, n - 1)
+    old_Y = poisson_sem_iso(y_points, n - 1)
 
     x_points[0, :], y_points[0, :] = gll_redistribution(x_points[0, :], y_points[0, :])
     x_points[-1, :], y_points[-1, :] = gll_redistribution(x_points[-1, :], y_points[-1, :])
     x_points[:, 0], y_points[:, 0] = gll_redistribution(x_points[:, 0], y_points[:, 0])
     x_points[:, -1], y_points[:, -1] = gll_redistribution(x_points[:, -1], y_points[:, -1])
 
-    X = poisson_sem_iso(x_points)
-    Y = poisson_sem_iso(y_points)
+    X = poisson_sem_iso(x_points, n - 1)
+    Y = poisson_sem_iso(y_points, n - 1)
 
-    uf = np.linspace(-1, 1, 30)
+    uf = np.linspace(-1, 1, N)
     z, w = zwgll(4)
     J = interp_mat(uf, z)
 
@@ -269,6 +274,7 @@ def element_meshing(x_points, y_points):
     plt.axis('off')
     plt.title(r"interpolated element mesh, without and with GLL adjustments")
 
+    old_Xf, old_Yf = np.meshgrid(zwgll(N - 1)[0], zwgll(N - 1)[0], indexing="ij")
 
     ax = fig.add_subplot(1, 2, 1)
     ax.plot(old_Xf, old_Yf, linewidth=1, alpha=1, color='r')
@@ -276,6 +282,8 @@ def element_meshing(x_points, y_points):
     
     ax.plot(old_X, old_Y, linewidth=2, alpha=1, color='b')
     ax.plot(old_X.T, old_Y.T, linewidth=2, alpha=1, color='b')
+
+    plt.gca().set_aspect('equal')
     
     ax = fig.add_subplot(1, 2, 2)
     ax.plot(Xf, Yf, linewidth=1, alpha=1, color='r')
@@ -284,7 +292,10 @@ def element_meshing(x_points, y_points):
     ax.plot(X, Y, linewidth=2, alpha=1, color='b')
     ax.plot(X.T, Y.T, linewidth=2, alpha=1, color='b')
 
+    plt.gca().set_aspect('equal')
     plt.show()
+
+    return Xf, Yf
 
 def gll_redistribution(x_top, y_top):
     n = x_top.shape[0]
@@ -322,7 +333,64 @@ def gll_redistribution(x_top, y_top):
 
     return x_gll, y_gll
 
+def uxy(x, y):
+    return np.sin(x) * np.sin(y) / (2 * np.pi**2)
+
+def fxy(x, y):
+    return np.sin(x) * np.sin(y)
+
 x_points = np.array([[.6, 1, 1.8, 2.7, 3.2], [.7, 0, 0, 0, 3.25], [0.8, 0, 0, 0, 3.3], [.8, 0, 0, 0, 3.7], [.5, .7, 1.9, 3.3, 4.0]])
 y_points = np.array([[1.7, 1.8, 1.8, 1.7, 1.6], [2.1, 0, 0, 0, 2.0], [3.1, 0, 0, 0, 3.2], [4.05, 0, 0, 0, 4.3], [4.4, 4.6, 5.2, 5.1, 5.0]])
 
-element_meshing(x_points, y_points)
+
+N0 = 30
+N1 = 32
+Ns = 2
+
+N_arr = []
+err_arr = []
+
+for N in range(N0, N1, Ns):
+    X, Y = np.meshgrid(zwgll(N)[0], zwgll(N)[0], indexing='ij')
+    Xf, Yf = element_meshing(x_points, y_points, N + 1)
+    ue = uxy(Xf, Yf)
+
+    ub = np.zeros_like(ue)
+    ub[0, :] = ue[0, :]
+    ub[:, 0] = ue[:, 0]
+    ub[-1, :] = ue[-1, :]
+    ub[:, -1] = ue[:, -1]
+
+    ub = poisson_sem_iso(ub, N, fxy)
+    er = ub - ue
+    err = np.linalg.norm(er, np.inf)
+
+    N_arr.append(N)
+    err_arr.append(err)
+
+    if (N >= N1 - Ns):
+        fig = plt.figure(figsize=plt.figaspect(0.33))
+        plt.axis('off')
+        plt.title(r"spectral element solution (sem, theo, error) to $\nabla^2 u = (\sin kx)(e^{ky})$, deformed mesh, inhomogenous dirichlet boundary conditions")
+
+        ax = fig.add_subplot(1, 3, 1, projection='3d')
+        ax.plot_wireframe(Xf, Yf, ub, linewidth=0.5, alpha=0.5)
+
+        ax = fig.add_subplot(1, 3, 2, projection='3d')
+        ax.plot_wireframe(Xf, Yf, ue, linewidth=0.5, alpha=0.5)
+        ax.plot_wireframe(Xf, Yf, ub, linewidth=0.5, alpha=0.5, color='r')
+
+        ax = fig.add_subplot(1, 3, 3, projection='3d')
+        ax.plot_wireframe(Xf, Yf, er, linewidth=0.5, alpha=0.5)
+        # ax.set_zlim3d(-.001, .001)
+
+        plt.show()
+
+"""
+fig = plt.figure()
+ax = fig.add_subplot(1, 1, 1)  
+plt.title("SEM 2D Poisson solutions - error vs. number of nodes")
+ax.plot(N_arr, err_arr)
+ax.set_yscale('log')
+plt.show()
+"""
