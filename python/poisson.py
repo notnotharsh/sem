@@ -267,6 +267,8 @@ def element_meshing(x_points, y_points, N):
     Xf = J@X@J.T
     Yf = J@Y@J.T
 
+    """
+
     old_Xf = J@old_X@J.T
     old_Yf = J@old_Y@J.T
 
@@ -276,6 +278,7 @@ def element_meshing(x_points, y_points, N):
 
     old_Xf, old_Yf = np.meshgrid(zwgll(N - 1)[0], zwgll(N - 1)[0], indexing="ij")
 
+    
     ax = fig.add_subplot(1, 2, 1)
     ax.plot(old_Xf, old_Yf, linewidth=1, alpha=1, color='r')
     ax.plot(old_Xf.T, old_Yf.T, linewidth=1, alpha=1, color='r')
@@ -293,7 +296,8 @@ def element_meshing(x_points, y_points, N):
     ax.plot(X.T, Y.T, linewidth=2, alpha=1, color='b')
 
     plt.gca().set_aspect('equal')
-    plt.show()
+    plt.show() 
+    """
 
     return Xf, Yf
 
@@ -334,26 +338,37 @@ def gll_redistribution(x_top, y_top):
     return x_gll, y_gll
 
 def uxy(x, y):
-    return np.sin(x) * np.sin(y) / (2 * np.pi**2)
+    return np.sin(x) * np.exp(y) / (2)
 
 def fxy(x, y):
-    return np.sin(x) * np.sin(y)
+    return 0
 
 x_points = np.array([[.6, 1, 1.8, 2.7, 3.2], [.7, 0, 0, 0, 3.25], [0.8, 0, 0, 0, 3.3], [.8, 0, 0, 0, 3.7], [.5, .7, 1.9, 3.3, 4.0]])
 y_points = np.array([[1.7, 1.8, 1.8, 1.7, 1.6], [2.1, 0, 0, 0, 2.0], [3.1, 0, 0, 0, 3.2], [4.05, 0, 0, 0, 4.3], [4.4, 4.6, 5.2, 5.1, 5.0]])
 
+# x_points = np.array([[0, .25, .5, .75, 1], [0, .25, .5, .75, 1], [0, .25, .5, .75, 1], [0, .25, .5, .75, 1], [0, .25, .5, .75, 1]]) * 2 - 1
+# y_points = x_points.T
 
-N0 = 30
-N1 = 32
+
+
+N0 = 2
+N1 = 40
 Ns = 2
 
 N_arr = []
 err_arr = []
 
 for N in range(N0, N1, Ns):
+
+    print(N)
+
+    Ah, Bh, Ch, Dh, z, w = semhat(N)
     X, Y = np.meshgrid(zwgll(N)[0], zwgll(N)[0], indexing='ij')
     Xf, Yf = element_meshing(x_points, y_points, N + 1)
+
+
     ue = uxy(Xf, Yf)
+    f = fxy(Xf, Yf)
 
     ub = np.zeros_like(ue)
     ub[0, :] = ue[0, :]
@@ -361,7 +376,54 @@ for N in range(N0, N1, Ns):
     ub[-1, :] = ue[-1, :]
     ub[:, -1] = ue[:, -1]
 
-    ub = poisson_sem_iso(ub, N, fxy)
+    Ih = sparse.eye(N + 1)
+
+    xr = Dh@Xf
+    xs = Xf@Dh.T
+    yr = Dh@Yf
+    ys = Yf@Dh.T
+
+    J = xr * ys - xs * yr
+
+    rx = ys / J
+    ry = -xs / J
+    sx = -yr / J
+    sy = xr / J 
+
+    Dr = sparse.kron(Ih, Dh)
+    Ds = sparse.kron(Dh, Ih)
+
+    Rdx = sparse.csr_matrix(np.diag(np.concatenate(rx.T)))
+    Sdx = sparse.csr_matrix(np.diag(np.concatenate(sx.T)))
+    Rdy = sparse.csr_matrix(np.diag(np.concatenate(ry.T)))
+    Sdy = sparse.csr_matrix(np.diag(np.concatenate(sy.T)))
+
+    Dex = Rdx.T@Dr + Sdx.T@Ds
+    Dey = Rdy.T@Dr + Sdy.T@Ds
+
+    B = sparse.csr_matrix(np.diag(np.concatenate(J.T)))@sparse.kron(Bh, Bh)
+
+    Rx = np.eye(N + 1)
+    Rx = Rx[1:N, :]
+
+    Ry = np.eye(N + 1)
+    Ry = Ry[1:N, :]
+
+    R = np.kron(Ry, Rx)
+
+    """ without diagonalization"""
+
+    ubv = np.concatenate(ub.T)
+
+    Ab = Dex.T@B@Dex + Dey.T@B@Dey
+    A = R@Ab@R.T
+
+    rhs = -R@Ab@ubv
+    ub += np.reshape(R.T@np.linalg.solve(A, rhs), (N + 1, N + 1)).T
+
+
+    """"""
+    
     er = ub - ue
     err = np.linalg.norm(er, np.inf)
 
@@ -386,11 +448,10 @@ for N in range(N0, N1, Ns):
 
         plt.show()
 
-"""
+
 fig = plt.figure()
 ax = fig.add_subplot(1, 1, 1)  
 plt.title("SEM 2D Poisson solutions - error vs. number of nodes")
 ax.plot(N_arr, err_arr)
 ax.set_yscale('log')
 plt.show()
-"""
