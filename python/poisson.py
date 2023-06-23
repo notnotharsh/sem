@@ -260,7 +260,7 @@ def element_meshing(x_points, y_points, N):
     X = poisson_sem_iso(x_points, n - 1)
     Y = poisson_sem_iso(y_points, n - 1)
 
-    uf = np.linspace(-1, 1, N)
+    uf = zwgll(N - 1)[0]
     z, w = zwgll(4)
     J = interp_mat(uf, z)
 
@@ -276,10 +276,11 @@ def element_meshing(x_points, y_points, N):
     plt.axis('off')
     plt.title(r"interpolated element mesh, without and with GLL adjustments")
 
-    old_Xf, old_Yf = np.meshgrid(zwgll(N - 1)[0], zwgll(N - 1)[0], indexing="ij")
+    r, s = np.meshgrid(zwgll(N - 1)[0], zwgll(N - 1)[0], indexing="ij")
 
     
     ax = fig.add_subplot(1, 2, 1)
+    
     ax.plot(old_Xf, old_Yf, linewidth=1, alpha=1, color='r')
     ax.plot(old_Xf.T, old_Yf.T, linewidth=1, alpha=1, color='r')
     
@@ -347,11 +348,11 @@ x_points = np.array([[.6, 1, 1.8, 2.7, 3.2], [.7, 0, 0, 0, 3.25], [0.8, 0, 0, 0,
 y_points = np.array([[1.7, 1.8, 1.8, 1.7, 1.6], [2.1, 0, 0, 0, 2.0], [3.1, 0, 0, 0, 3.2], [4.05, 0, 0, 0, 4.3], [4.4, 4.6, 5.2, 5.1, 5.0]])
 
 # x_points = np.array([[0, .25, .5, .75, 1], [0, .25, .5, .75, 1], [0, .25, .5, .75, 1], [0, .25, .5, .75, 1], [0, .25, .5, .75, 1]]) * 2 - 1
-# y_points = x_points.T
+# y_points = x_points.T * 3
+# x_points *= 3
 
 
-
-N0 = 2
+N0 = 6
 N1 = 40
 Ns = 2
 
@@ -421,8 +422,16 @@ for N in range(N0, N1, Ns):
     rhs = -R@Ab@ubv
     ub += np.reshape(R.T@np.linalg.solve(A, rhs), (N + 1, N + 1)).T
 
+    cosex = np.cos(Xf)
+    sinx = np.sin(Xf)
+    sinxv = sparse.csr_matrix(np.concatenate(sinx.T)).T
 
-    """"""
+    print(Dex.shape, sinxv.shape)
+
+    cosxv = Dex@sinxv
+
+    print(cosxv.shape)
+    cosx = np.reshape(cosxv, (N + 1, N + 1)).T.A
     
     er = ub - ue
     err = np.linalg.norm(er, np.inf)
@@ -433,7 +442,7 @@ for N in range(N0, N1, Ns):
     if (N >= N1 - Ns):
         fig = plt.figure(figsize=plt.figaspect(0.33))
         plt.axis('off')
-        plt.title(r"spectral element solution (sem, theo, error) to $\nabla^2 u = (\sin kx)(e^{ky})$, deformed mesh, inhomogenous dirichlet boundary conditions")
+        plt.title(r"spectral element solution (sem, theo, error) to $\nabla^2 u = 0$, deformed mesh, inhomogenous dirichlet boundary conditions")
 
         ax = fig.add_subplot(1, 3, 1, projection='3d')
         ax.plot_wireframe(Xf, Yf, ub, linewidth=0.5, alpha=0.5)
@@ -444,7 +453,7 @@ for N in range(N0, N1, Ns):
 
         ax = fig.add_subplot(1, 3, 3, projection='3d')
         ax.plot_wireframe(Xf, Yf, er, linewidth=0.5, alpha=0.5)
-        # ax.set_zlim3d(-.001, .001)
+        ax.set_zlim3d(-.01, .01)
 
         plt.show()
 
