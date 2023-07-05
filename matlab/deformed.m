@@ -1,11 +1,24 @@
 clear all; format compact; format shorte ; close all
 
-N=18; [Ah,Bh,Ch,Dh,z,w] = semhat(N); Ih=speye(N+1);
+N=40; [Ah,Bh,Ch,Dh,z,w] = semhat(N); Ih=speye(N+1);
+
+
+x_points = [[0.6 1 1.8 2.7 3.2];
+            [0.7 0 0 0 3.25];
+            [0.8 0 0 0 3.3];
+            [0.8 0 0 0 3.7];
+            [0.5 0.7 1.9 3.3 4.0]];
+            
+y_points = [[1.7 1.8 1.8 1.7 1.6];
+            [2.1 0 0 0 2.0];
+            [3.1 0 0 0 3.2];
+            [4.05 0 0 0 4.3];
+            [4.4 4.6 5.2 5.1 5.0]];
+
+[X, Y] = element_meshing(x_points, y_points, N + 1)
 
 [R,S]=ndgrid(z,z); %% Base grid: Omega-hat = [-1,1]^2
 % X=2*R; Y=S.*(.1+.4*(1-tanh(10*R))/2); %% Physical mesh: Omega
-X = csvread("Xf.dat")
-Y = csvread("Yf.dat")
 % mesh(X,Y,0*X); pause; %% See if mesh makes sense
 
 xr = Dh*X; xs = X*Dh'; %% Deformation metrics, dx/dr, dx/ds
@@ -46,8 +59,6 @@ Te = sin(X) .* exp(Y) / 2
 mesh(X,Y,T) %% Plot solution
 figure
 mesh(X,Y,T - Te) %% Plot solution
-
-disp(tb)
 
 
 

@@ -240,6 +240,8 @@ def poisson_sem_iso(bdy_points, N, func=None):
     inhom_effect = Sxi_bar.T @ np.multiply((Sxi_bar@ub@Syi_bar.T), Db) @ Syi_bar
     inhom_effect = Rx@inhom_effect@Ry.T
 
+    print(Sxi_bar)
+
     u = Sx @ np.divide((Sx.T @ (Bf - inhom_effect) @ Sy), D) @ Sy.T
     ub += Rx.T@u@Ry
 
@@ -347,6 +349,8 @@ def fxy(x, y):
 x_points = np.array([[.6, 1, 1.8, 2.7, 3.2], [.7, 0, 0, 0, 3.25], [0.8, 0, 0, 0, 3.3], [.8, 0, 0, 0, 3.7], [.5, .7, 1.9, 3.3, 4.0]])
 y_points = np.array([[1.7, 1.8, 1.8, 1.7, 1.6], [2.1, 0, 0, 0, 2.0], [3.1, 0, 0, 0, 3.2], [4.05, 0, 0, 0, 4.3], [4.4, 4.6, 5.2, 5.1, 5.0]])
 
+print(gll_redistribution(x_points[0, :], y_points[0, :]))
+
 # x_points = np.array([[0, .25, .5, .75, 1], [0, .25, .5, .75, 1], [0, .25, .5, .75, 1], [0, .25, .5, .75, 1], [0, .25, .5, .75, 1]]) * 2 - 1
 # y_points = x_points.T * 3
 # x_points *= 3
@@ -412,7 +416,6 @@ for N in range(N0, N1, Ns):
 
     R = np.kron(Ry, Rx)
 
-    """ without diagonalization"""
 
     ubv = np.concatenate(ub.T)
 
