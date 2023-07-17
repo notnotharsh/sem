@@ -96,8 +96,8 @@ for N = N0:N1;
 end;
 
 figure;
-loglog(cell2mat(Ns), cell2mat(condas),'MarkerSize',12, "r.", cell2mat(condaus),'MarkerSize',12, "b.", cell2mat(condss), "k.",'MarkerSize',12);
-legend("cond A", "cond Au", "cond Au\\A");
+loglog(cell2mat(Ns), cell2mat(condas),'MarkerSize',12, "r.", cell2mat(condaus),'MarkerSize',12, "b.", cell2mat(condss), "k.",'MarkerSize',12, cell2mat(Ns).*cell2mat(Ns).*cell2mat(Ns) / 30, "g.", 'MarkerSize',12);
+legend("cond A", "cond Au", "cond Au\\A", "kN^3");
 title("Conditioning of Deformed, Undeformed Stiffness Matrices vs. Degree");
 
 figure;
